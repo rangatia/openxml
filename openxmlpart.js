@@ -30,7 +30,7 @@ module.exports = class OpenXMLPart {
     }
 
     getXDocument () {
-        if (!this.xDoc) this.xDoc = XDocument.parse(decodeURIComponent(escape(this.xml)))
+        if (!this.xDoc) this.xDoc = XDocument.parse(decodeURIComponent(this.xml))
         return this.xDoc
     }
 
@@ -124,6 +124,11 @@ module.exports = class OpenXMLPart {
 
 }
 
+/**
+ * Changes
+ * 
+ * 
+ */
 // API Changes [I=implemented | NR<reason>=not required | T<new method>=Transitioned to]
 // [T] ()                               // constructor
 // [I] getXDocument

@@ -11,7 +11,7 @@ module.exports = class OpenXML {
 
     open (filename) {
         return new Promise( (resolve, reject) => {
-            fs.readFile(filename, (err, data) => {
+            fs.readFile(filename, 'base64', (err, data) => {
                 if (err) throw err
                 this.Package.readPackage(data)
                     .then( pkg => {

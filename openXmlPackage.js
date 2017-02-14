@@ -21,7 +21,7 @@ module.exports = class OpenXMLPackage {
         return new Promise((resolve, reject) => {
 
             const zip = new JSZip()
-            zip.loadAsync(data)
+            zip.loadAsync(data, {base64: true})
                 .then(zipData => {
                     let constructParts = []
                     Object.keys(zipData.files).map(f => {
