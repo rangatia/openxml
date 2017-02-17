@@ -30,7 +30,7 @@ module.exports = class OpenXMLPart {
     }
 
     getXDocument () {
-        if (!this.xDoc) this.xDoc = XDocument.parse(decodeURIComponent(this.xml))
+        if (!this.xDoc) this.xDoc = XDocument.parse(this.xml) // XDocument.parse(decodeURIComponent(this.xml))
         return this.xDoc
     }
 
