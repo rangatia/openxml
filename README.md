@@ -2,7 +2,7 @@
 This is a rewrite of Open XML SDK for JavaScript (http://openxmlsdkjs.codeplex.com).
 
 # Usage
-Javascript library for handling Open XML documents. 
+Javascript library for handling Open XML documents.
 
 # Links
 - Eric White's blog on [Open XML SDK for JavaScript](http://ericwhite.com/blog/open-xml-sdk-for-javascript/)
