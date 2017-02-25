@@ -39,3 +39,5 @@ jspm_packages
 # Custom
 old/*
 .vscode/
+examples/out.pptx
+guide.md
