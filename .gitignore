@@ -40,4 +40,4 @@ jspm_packages
 old/*
 .vscode/
 examples/out.pptx
-guide.md
+ref.md
