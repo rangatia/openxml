@@ -1,4 +1,4 @@
-module.export = class OpenXMLRelationship {
+module.exports = class OpenXMLRelationship {
 
   constructor (pkg, part, relId, relType, target, targetMode) {
 
@@ -22,7 +22,7 @@ module.export = class OpenXMLRelationship {
       if (slashIndex !== -1) workingCurrentPath = this.fromPart.uri.substring(0, slashIndex) + '/'
     }
 
-    while (workingTarget.startWith('../')) {
+    while (workingTarget.startsWith('../')) {
       if (workingCurrentPath.endsWith('/')) {
         workingCurrentPath = workingCurrentPath.substring(0, workingCurrentPath.length - 1)
       }
