@@ -23,9 +23,10 @@ module.exports = class OpenXMLPackage {
   readPackage (document) {
     return new Promise((resolve, reject) => {
       const zip = new JSZip()
-      let docBuffer = null
-      if (document instanceof Uint8Array) docBuffer = document
-      else docBuffer = readFilePromise(document)
+      // let docBuffer = null
+      // if (document instanceof Uint8Array) docBuffer = document
+      // else docBuffer = readFilePromise(document)
+      const docBuffer = readFilePromise(document)
       docBuffer
         .then(() => zip.loadAsync(docBuffer))
         .then(zipBuffer => {
@@ -297,9 +298,10 @@ module.exports = class OpenXMLPackage {
 
 }
 
-function readFilePromise(filename) {
+function readFilePromise(document) {
   return new Promise((resolve, reject) => {
-    fs.readFile(filename, (err, data) => {
+    if (document instanceof Uint8Array) resolve(document)
+    fs.readFile(document, (err, data) => {
       if (err) reject(err)
       resolve(data)
     })
