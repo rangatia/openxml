@@ -24,7 +24,7 @@ module.exports = class OpenXMLPackage {
     return new Promise((resolve, reject) => {
       const zip = new JSZip()
       let docBuffer = null
-      if (document instanceof Buffer) docBuffer = document
+      if (document instanceof Uint8Array) docBuffer = document
       else docBuffer = readFilePromise(document)
       docBuffer
         .then(() => zip.loadAsync(docBuffer))
