@@ -114,8 +114,8 @@ module.exports = class OpenXMLPackage {
           else zip.file(name, partContent)
         }
       }
-      zip.generateAsync({ type: 'nodebuffer', compression: 'deflate' }).then(z => {
-        fs.writeFile(filename, z, (err) => {
+      zip.generateAsync({ type: 'uint8array', compression: 'deflate' }).then(z => {
+        fs.writeFile(filename, new Buffer(z), (err) => {
           if (err) reject(err)
           resolve()
         })
