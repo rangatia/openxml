@@ -1,5 +1,5 @@
 const OpenXMLX = require('./openxmlx')
-// const OpenXMLRelationship = require('./openxmlrelationship')
+
 const Ltxml = require('./ltxml')
 const XDocument = Ltxml.XDocument
 const XElement = Ltxml.XElement
