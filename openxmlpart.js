@@ -1,5 +1,5 @@
 const OpenXMLX = require('./openxmlx')
-// const OpenXMLRelationship = require('./openxmlrelationship')
+
 const Ltxml = require('./ltxml')
 const XDocument = Ltxml.XDocument
 const XElement = Ltxml.XElement
@@ -117,28 +117,3 @@ module.exports = class OpenXMLPart {
   }
 
 }
-
-/*
- changelog
- |==============================|=========================================
- | Legacy Code                  | Changes
- |==============================|=========================================
- | ()                           | constructor
- | getXDocument                 |
- | putXDocument                 | not used
- | getRelsPartUriOfPart         | inline
- | getRelsPartOfPart            | inline
- | getRelationships             |
- | getParts                     |
- | getRelationshipsByRelationshipType | getRelations().filter( r.relationType )
- | getPartsByRelationshipType   |
- | getPartByRelationshipType    | as above. array index 0
- | getRelationshipsByContentType|
- | getPartsByContentType        |
- | getRelationshipById          | getRleations().filter( r.relationshipId)
- | getPartById                  | getRelations.filter(by rId).getPartByURI(r.targetFullName)]
- | addRelationship              |
- | deleteRelationship           |
- | *part                        | userland functions
- | OpenXMLPackage.addRelationshipToRelPart  | addRelationshipToPart
- */

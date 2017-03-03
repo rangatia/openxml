@@ -15,12 +15,12 @@ const XAttribute = Ltxml.XAttribute
 
 module.exports = class OpenXMLPackage {
 
-  constructor(document) {
+  constructor () {
     this.parts = {}
     this.ctXDoc = null
   }
 
-  loadAsync(document) {
+  readPackage (document) {
     return new Promise((resolve, reject) => {
       const zip = new JSZip()
       let docBuffer = null
@@ -70,7 +70,7 @@ module.exports = class OpenXMLPackage {
     })
   }
 
-  generateAsync(filename) {
+  writePackage (filename) {
     return new Promise((resolve, reject) => {
       const zip = new JSZip()
       for (const part in this.parts) {
@@ -122,21 +122,7 @@ module.exports = class OpenXMLPackage {
     })
   }
 
-  getContentType(uri) {
-    const ct = this.ctXDoc.descendants(OpenXMLX.CT.Override).firstOrDefault(o => o.attribute('PartName').value === uri)
-
-    if (!ct) {
-      const ext = uri.substring(uri.lastIndexOf('.') + 1)
-      const dct = this.ctXDoc
-        .descendants(OpenXMLX.CT.Default)
-        .firstOrDefault(d => d.attribute('Extension').value === ext)
-      if (dct) return dct.attribute('ContentType').value
-      else return null
-    }
-    return ct.attribute('ContentType').value
-  }
-
-  addPart(uri, contentType, partType, data) {
+  addPart (uri, contentType, partType, data) {
     const ctEl = this.ctXDoc.getRoot().elements(OpenXMLX.CT.Override)
       .firstOrDefault(or => or.attribute('PartName').value === uri)
 
@@ -181,6 +167,20 @@ module.exports = class OpenXMLPackage {
     const rxe = rxDoc.getRoot().elements(OpenXMLX.PKGREL.Relationship)
       .firstOrDefault(r => r.attribute('Id').value === relationshipId)
     if (rxe) rxe.remove()
+  }
+
+  getContentType(uri) {
+    const ct = this.ctXDoc.descendants(OpenXMLX.CT.Override).firstOrDefault(o => o.attribute('PartName').value === uri)
+
+    if (!ct) {
+      const ext = uri.substring(uri.lastIndexOf('.') + 1)
+      const dct = this.ctXDoc
+        .descendants(OpenXMLX.CT.Default)
+        .firstOrDefault(d => d.attribute('Extension').value === ext)
+      if (dct) return dct.attribute('ContentType').value
+      else return null
+    }
+    return ct.attribute('ContentType').value
   }
 
   getPartById(relationshipId) {
