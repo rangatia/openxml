@@ -6,25 +6,25 @@ const XElement = Ltxml.XElement
 const XAttribute = Ltxml.XAttribute
 
 module.exports = class OpenXMLPart {
-  constructor (pkg, uri, contentType, partType, data) {
+  constructor (pkg, uri, contentType, partType, content) {
     this.pkg = pkg
     this.uri = uri
     this.contentType = contentType
     this.partType = partType
     this.data = null
-    this.base64 = null
+    this.buffer = null
     this.xml = null
     this.xDoc = null
 
     partType = (uri === '[Content_Types].xml' ? 'xml' : partType)
 
     if (partType) {
-      if (partType === 'base64') this.base64 = data
+      if (partType === 'buffer') this.buffer = content
       else if (partType === 'xml') {
-        if (data.nodeType === 'Element' || data.nodeType === 'Document') this.xDoc = data
-        else this.xml = data
+        if (content.nodeType === 'Element' || content.nodeType === 'Document') this.xDoc = content
+        else this.xml = content
       }
-    } else this.data = data
+    } else this.data = content
   }
 
   getXDocument () {

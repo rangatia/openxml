@@ -1,4 +1,7 @@
+const fs = require('fs')
 const JSZip = require('jszip')
+
+const OpenXML = require('./openxml')
 const OpenXMLPart = require('./openxmlpart')
 const OpenXMLRelationship = require('./openxmlrelationship')
 const OpenXMLX = require('./openxmlx')
@@ -12,119 +15,128 @@ const XAttribute = Ltxml.XAttribute
 
 module.exports = class OpenXMLPackage {
 
-  constructor () {
+  constructor(document) {
     this.parts = {}
     this.ctXDoc = null
   }
 
-  readPackage (data) {
+  loadAsync(document) {
     return new Promise((resolve, reject) => {
       const zip = new JSZip()
-      zip.loadAsync(data)
-        .then(zipData => {
+      let docBuffer = null
+      if (document instanceof Buffer) docBuffer = document
+      else docBuffer = readFilePromise(document)
+      docBuffer
+        .then(() => zip.loadAsync(docBuffer))
+        .then(zipBuffer => {
           let constructParts = []
-          Object.keys(zipData.files).map(f => {
+          Object.keys(zipBuffer.files).map(f => {
             if (f.endsWith('/')) return
             const zipFile = zip.file(f)
-
             f = (f !== '[Content_Types].xml' ? '/' : '') + f
             const ext = f.substring(f.lastIndexOf('.') + 1)
-            let asType = (ext === 'xml' || ext === 'rels') ? 'string' : 'base64'
+            const asType = (ext === 'xml' || ext === 'rels') ? 'string' : 'uint8array'
             constructParts.push(
-              zipFile.async(asType)
-                .then(data => {
-                  this.parts[f] = new OpenXMLPart(this, f, null, null, data)
-                })
+              zipFile.async(asType).then(content => {
+                this.parts[f] = new OpenXMLPart(this, f, null, null, content)
+              })
             )
           })
-          Promise.all(constructParts)
-            .then(() => {
-              const ctf = this.parts['[Content_Types].xml']
-              if (!ctf) throw new Error('Invalid OpenXML document. Content-Type item not found in package')
+          Promise.all(constructParts).then(() => {
+            const ctf = this.parts['[Content_Types].xml']
+            if (!ctf) throw new Error('Invalid OpenXML document. Content-Type item not found in package')
+            this.ctXDoc = XDocument.parse(ctf.xml)
 
-              this.ctXDoc = XDocument.parse(ctf.xml)
+            for (const part in this.parts) {
+              if (part === '[Content_Types].xml') continue
 
-              for (const part in this.parts) {
-                if (part === '[Content_Types].xml') continue
+              const ct = this.getContentType(part)
+              const thisPart = this.parts[part]
+              thisPart.contentType = ct
 
-                const ct = this.getContentType(part)
-                const thisPart = this.parts[part]
-                thisPart.contentType = ct
-
-                if (ct.endsWith('xml')) {
-                  thisPart.xml = thisPart.data
-                  thisPart.partType = 'xml'
-                } else {
-                  thisPart.base64 = thisPart.data
-                  thisPart.partType = 'base64'
-                }
+              if (ct.endsWith('xml')) {
+                thisPart.xml = thisPart.data
+                thisPart.partType = 'xml'
+              } else {
+                thisPart.buffer = thisPart.data
+                thisPart.partType = 'buffer'
               }
-
-              resolve(this)
-            })
+              thisPart.data = null
+            }
+            resolve(this)
+          })
         })
+        .catch(err => reject(err))
     })
   }
 
-  writePackage () {
+  generateAsync(filename) {
     return new Promise((resolve, reject) => {
       const zip = new JSZip()
-
       for (const part in this.parts) {
-        let partContent = null
-
-        const thisPart = this.parts[part]
-        if (!thisPart) continue
-
         if (part === '[Content_Types].xml') {
-          partContent = this.ctXDoc
-          zip.file('[Content_Types].xml', partContent.toString(false))
+          zip.file('[Content_Types].xml', this.ctXDoc.toString(false))
           continue
         }
 
         let ct = null
-        const cte = this.ctXDoc.getRoot()
-          .elements(OpenXMLX.CT.Override)
+        const cte = this.ctXDoc.getRoot().elements(OpenXMLX.CT.Override)
           .firstOrDefault(e => e.attribute('PartName').value === part)
         if (!cte) {
           const ext = part.substring(part.lastIndexOf('.') + 1).toLowerCase()
-          const dct = this.ctXDoc.getRoot()
-            .elements(OpenXMLX.CT.Default)
+          const dct = this.ctXDoc.getRoot().elements(OpenXMLX.CT.Default)
             .firstOrDefault(e => e.attribute('Extension').value.toLowerCase() === ext)
           if (!dct) throw new Error('Invalid OpenXML document. Unable to process content type')
           ct = dct.attribute('ContentType').value
         } else ct = cte.attribute('ContentType').value
 
+        const thisPart = this.parts[part]
+        let partContent = null
         let type = null
         let isLtxml = false
-
         if (ct.endsWith('xml')) {
+          type = 'xml'
           if (!thisPart.xDoc) partContent = thisPart.xml
           else {
             partContent = thisPart.xDoc
             isLtxml = true
           }
-          type = 'xml'
         } else {
-          partContent = thisPart.base64
-          // type = 'binary'
-          type = 'base64'
+          type = 'buffer'
+          partContent = thisPart.buffer
         }
 
-        let name = part.charAt(0) === '/' ? part.substring(1) : part
-        if (type !== 'xml') zip.file(name, partContent, { base64: true, compression: 'store' })
+        const name = part.indexOf('/') === 0 ? part.substring(1) : part
+        if (type !== 'xml') zip.file(name, partContent, { compression: 'store' }) // base64: true, 
         else {
           if (isLtxml) zip.file(name, partContent.toString(false))
           else zip.file(name, partContent)
         }
       }
-      zip.generateAsync({ type: 'nodebuffer', compression: 'deflate' })
-        .then(content => resolve(content))
-        .catch(err => reject(err))
+      zip.generateAsync({ type: 'nodebuffer', compression: 'deflate' }).then(z => {
+        fs.writeFile(filename, z, (err) => {
+          if (err) reject(err)
+          resolve()
+        })
+      }).catch(err => reject(err))
     })
   }
 
-  addPart (uri, contentType, partType, data) {
+  getContentType(uri) {
+    const ct = this.ctXDoc.descendants(OpenXMLX.CT.Override).firstOrDefault(o => o.attribute('PartName').value === uri)
+
+    if (!ct) {
+      const ext = uri.substring(uri.lastIndexOf('.') + 1)
+      const dct = this.ctXDoc
+        .descendants(OpenXMLX.CT.Default)
+        .firstOrDefault(d => d.attribute('Extension').value === ext)
+      if (dct) return dct.attribute('ContentType').value
+      else return null
+    }
+    return ct.attribute('ContentType').value
+  }
+
+  addPart(uri, contentType, partType, data) {
     const ctEl = this.ctXDoc.getRoot().elements(OpenXMLX.CT.Override)
       .firstOrDefault(or => or.attribute('PartName').value === uri)
 
@@ -142,7 +154,7 @@ module.exports = class OpenXMLPackage {
     return newPart
   }
 
-  deletePart (part) {
+  deletePart(part) {
     const uri = part.uri
     this.parts[uri] = null
 
@@ -151,7 +163,7 @@ module.exports = class OpenXMLPackage {
     if (ctEl) ctEl.remove()
   }
 
-  addRelationship (relationshipId, relationshipType, target, targetMode) {
+  addRelationship(relationshipId, relationshipType, target, targetMode) {
     if (!targetMode) targetMode = 'Internal'
     let rootRelationshipPart = this.getPartByUri('/_rels/.rels')
     if (!rootRelationshipPart) {
@@ -163,7 +175,7 @@ module.exports = class OpenXMLPackage {
     OpenXMLPart.addRelationshipToRelPart(rootRelationshipPart, relationshipId, relationshipType, target, targetMode)
   }
 
-  deleteRelationship (relationshipId) {
+  deleteRelationship(relationshipId) {
     const rootRelationshipsPart = this.getPartByUri('/_rels/.rels')
     const rxDoc = rootRelationshipsPart.getXDocument()
     const rxe = rxDoc.getRoot().elements(OpenXMLX.PKGREL.Relationship)
@@ -171,39 +183,23 @@ module.exports = class OpenXMLPackage {
     if (rxe) rxe.remove()
   }
 
-  getContentType (uri) {
-    const ct = this.ctXDoc
-      .descendants(OpenXMLX.CT.Override)
-      .firstOrDefault(o => o.attribute('PartName').value === uri)
-
-    if (!ct) {
-      const ext = uri.substring(uri.lastIndexOf('.') + 1)
-      const dct = this.ctXDoc
-        .descendants(OpenXMLX.CT.Default)
-        .firstOrDefault(d => d.attribute('Extension').value === ext)
-      if (dct) return dct.attribute('ContentType').value
-      else return null
-    }
-    return ct.attribute('ContentType').value
-  }
-
-  getPartById (relationshipId) {
+  getPartById(relationshipId) {
     const rel = this.getRelationshipById(relationshipId)
     if (rel) return this.getPartByUri(rel.targetFullName)
     return null
   }
 
-  getPartByRelationshipType (relationshipType) {
+  getPartByRelationshipType(relationshipType) {
     const parts = this.getPartsByRelationshipType(relationshipType)
     if (parts.length < 1) return null
     return parts[0]
   }
 
-  getPartByUri (uri) {
+  getPartByUri(uri) {
     return this.parts[uri]
   }
 
-  getParts () {
+  getParts() {
     const parts = []
     const rels = this.getRelationships()
     for (const rel of rels) {
@@ -212,7 +208,7 @@ module.exports = class OpenXMLPackage {
     return parts
   }
 
-  getPartsByRelationshipType (relationshipType) {
+  getPartsByRelationshipType(relationshipType) {
     const parts = []
     const rels = this.getRelationshipsByRelationshipType(relationshipType)
     for (const rel of rels) {
@@ -221,7 +217,7 @@ module.exports = class OpenXMLPackage {
     return parts
   }
 
-  getPartsByContentType (contentType) {
+  getPartsByContentType(contentType) {
     const parts = []
     const rels = this.getRelationshipsByContentType(contentType)
     for (const rel in rels) {
@@ -230,7 +226,7 @@ module.exports = class OpenXMLPackage {
     return parts
   }
 
-  getRelationshipById (relationshipId) {
+  getRelationshipById(relationshipId) {
     const rels = this.getRelationships()
     for (const rel of rels) {
       if (rel.relationshipId === relationshipId) return rel
@@ -238,12 +234,12 @@ module.exports = class OpenXMLPackage {
     return null
   }
 
-  getRelationships () {
+  getRelationships() {
     const rootRelationshipsPart = this.getPartByUri('/_rels/.rels')
     return this.getRelationshipsFromPart(null, rootRelationshipsPart)
   }
 
-  getRelationshipsFromPart (part, relsPart) {
+  getRelationshipsFromPart(part, relsPart) {
     const pkg = part ? null : this
     const rxDoc = relsPart.getXDocument()
     const rels = rxDoc.getRoot().elements(OpenXMLX.PKGREL.Relationship)
@@ -262,7 +258,7 @@ module.exports = class OpenXMLPackage {
     return rels
   }
 
-  getRelationshipsByRelationshipType (relationshipType) {
+  getRelationshipsByRelationshipType(relationshipType) {
     const rootRelationshipsPart = this.getPartByUri('/_rels/.rels')
     const rxDoc = rootRelationshipsPart.getXDocument()
     // var that = this;
@@ -283,7 +279,7 @@ module.exports = class OpenXMLPackage {
     return rels
   }
 
-  getRelationshipsByContentType (contentType) {
+  getRelationshipsByContentType(contentType) {
     const rootRelationshipsPart = this.getPartByUri('/_rels/.rels')
     const rels = []
     if (rootRelationshipsPart) {
@@ -301,35 +297,11 @@ module.exports = class OpenXMLPackage {
 
 }
 
-/*
- changelog
- |==============================|=========================================
- | Legacy Code                  | Changes
- |==============================|=========================================
- | openFromBase64Internal       | readPackage
- | openFromFlatOpcInternal      | not handling flatOPC
- | ()                           | constructor
- | openFromBase64               | directly piped to writePackage
- | openFromFlatOpc              | not handling flatOPC
- | saveToBase64                 | writePackage
- | saveToFlatOpc                | not handling flatOPC
- | addPart                      |
- | deletePart                   |
- | function getRelationshipsFromRelsXml | getRelationshipsFromPart
- | getRelationships             |
- | getParts                     |
- | getRelationshipsByRelationshipType |
- | getPartsByRelationshipType   |
- | getPartByRelationshipType    |
- | getRelationshipsByContentType|
- | getPartsByContentType        |
- | getRelationshipById          |
- | getPartById                  |
- | getPartByUri                 |
- | function addRelationshipToRelPart    | OpenXMLPart.addRelationshipToRelPart
- | addRelationship              |
- | deleteRelationship           |
- | getContentType               |
- | *Part(s)                     | userland functions
- |==============================|=========================================
- */
+function readFilePromise(filename) {
+  return new Promise((resolve, reject) => {
+    fs.readFile(filename, (err, data) => {
+      if (err) reject(err)
+      resolve(data)
+    })
+  })
+}
