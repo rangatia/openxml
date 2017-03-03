@@ -23,9 +23,7 @@ module.exports = class OpenXMLPackage {
   readPackage (document) {
     return new Promise((resolve, reject) => {
       const zip = new JSZip()
-      let docBuffer = null
-      if (document instanceof Uint8Array) docBuffer = document
-      else docBuffer = readFilePromise(document)
+      const docBuffer = readFilePromise(document)
       docBuffer
         .then(() => zip.loadAsync(docBuffer))
         .then(zipBuffer => {
@@ -113,10 +111,11 @@ module.exports = class OpenXMLPackage {
           else zip.file(name, partContent)
         }
       }
-      zip.generateAsync({ type: 'nodebuffer', compression: 'deflate' }).then(z => {
-        fs.writeFile(filename, z, (err) => {
+      zip.generateAsync({ type: 'uint8array', compression: 'deflate' }).then(z => {
+        if (!filename) resolve(z)
+        fs.writeFile(filename, new Buffer(z), (err) => {
           if (err) reject(err)
-          resolve()
+          resolve(null)
         })
       }).catch(err => reject(err))
     })
@@ -297,9 +296,10 @@ module.exports = class OpenXMLPackage {
 
 }
 
-function readFilePromise(filename) {
+function readFilePromise(document) {
   return new Promise((resolve, reject) => {
-    fs.readFile(filename, (err, data) => {
+    if (document instanceof Uint8Array) resolve(document)
+    fs.readFile(document, (err, data) => {
       if (err) reject(err)
       resolve(data)
     })
